@@ -3,8 +3,8 @@
 
 plot_alpha_diversity <- function() {
   my_list <- list()
-  fungo <- phyloseq::subset_samples(identps_bakt, Trtment != '1champ' & Trtment != '12n')
-  bako <- phyloseq::subset_samples(identps_fungi, Trtment != '1champ' & Trtment != '12n')
+  bako <- phyloseq::subset_samples(identps_bakt, Trtment != '1champ' & Trtment != '12n')
+  fungo <- phyloseq::subset_samples(identps_fungi, Trtment != '1champ' & Trtment != '12n')
 #---- Rarefy to even depth and Compute shannon diversity -----------------------
   set.seed(100)
   fungorare = phyloseq::filter_taxa(fungo, function(x) sum(x) > 1, TRUE)
@@ -12,9 +12,9 @@ plot_alpha_diversity <- function() {
   fungocommun = phyloseq::filter_taxa(fungo, function(x) sum(x >= 1) > 1, TRUE)
   fungocommun = phyloseq::rarefy_even_depth(fungocommun, sample.size = 1500)
   bakorare = phyloseq::filter_taxa(bako, function(x) sum(x) > 1, TRUE)
-  bakorare = phyloseq::rarefy_even_depth(bakorare, sample.size = 1500)
+  bakorare = phyloseq::rarefy_even_depth(bakorare, sample.size = 7000)
   bakocommun = phyloseq::filter_taxa(bako, function(x) sum(x >= 1) > 1, TRUE)
-  bakocommun = phyloseq::rarefy_even_depth(bakocommun, sample.size = 1500)
+  bakocommun = phyloseq::rarefy_even_depth(bakocommun, sample.size = 7000)
 
   shannon_baktrare <- vegan::diversity(phyloseq::otu_table(bakorare),'shannon')
   shannon_baktcommun <- vegan::diversity(phyloseq::otu_table(bakocommun),'shannon')
@@ -52,6 +52,8 @@ plot_alpha_diversity <- function() {
   # Nothing significant will plot tree richness and say that phylogenetic
   # did not produce different results
 
+  MuMIn::r.squaredGLMM(nlme::lme(exp(shannon_baktrare) ~ PD, random = ~1| Plot,data=pd_test_bakorare))
+  MuMIn::r.squaredGLMM(nlme::lme(data=pd_test_fungrare, exp(shannon_fungrare) ~ PD, random = ~1| Plot))
 #----Relation arbre diversité functionel - fungi/bakt  phylogénétique ------
   data_fdis <- as.data.frame(FD::dbFD(as.data.frame(scale(x)),a[,c(-1, -2)], calc.FRic= T, calc.FDiv= T)$FDis)
   names(data_fdis) <- "fdis"
@@ -87,6 +89,8 @@ plot_alpha_diversity <- function() {
   my_list$summary_lm_fdis_fr <- summary(nlme::lme(data=fdis_test_fungrare, exp(shannon_fungrare) ~ fdis, random = ~1| Plot))
   my_list$summary_lm_fdis_fc <- summary(nlme::lme(data=fdis_test_fungcommun, exp(shannon_fungcommun) ~ fdis, random = ~1| Plot))
 
+  MuMIn::r.squaredGLMM(nlme::lme(data=fdis_test_bakorare, exp(shannon_baktrare) ~ fdis, random = ~1| Plot))
+  MuMIn::r.squaredGLMM(nlme::lme(data=fdis_test_fungrare, exp(shannon_fungrare) ~ fdis, random = ~1| Plot))
 #----Relation arbre diversité spécifique - fungi/bakt ------
   # Bacteria rare
   sha_bakorare <- data.frame(row.names = phyloseq::sample_data(bakorare)$id,
@@ -130,16 +134,16 @@ plot_alpha_diversity <- function() {
   summary(nlme::lme(data=df_nem2, exp(shannon) ~ sr, random = ~1| Plot))
   MuMIn::r.squaredGLMM(nlme::lme(data=df_nem2, exp(shannon) ~ sr, random = ~1| Plot))
 #---- Plot species richness ----------------------------------------------------
-  alldf <- data.frame(treespdiv=c(df_nem2$sr,
+  alldf <- data.frame(treespdiv=c(#df_nem2$sr,
                                   sample_data(fungorare)$DIV,
                                   sample_data(bakorare)$DIV),
-                      shannon=c(df_nem2$shannon,
+                      shannon=c(#df_nem2$shannon,
                                 shannon_fungrare,
                                 shannon_baktrare),
-                      group=c(rep('nematode',nrow(df_nem2)),
+                      group=c(#rep('nematode',nrow(df_nem2)),
                               rep('fungi',nrow(sample_data(fungorare))),
                               rep('bacteria',nrow(sample_data(bakorare)))),
-                      Plot = c(df_nem2$Plot,
+                      Plot = c(#df_nem2$Plot,
                                sample_data(fungorare)$Plot,
                                sample_data(bakorare)$Plot))
   alldf <- subset(alldf, treespdiv != 0)
@@ -148,33 +152,54 @@ plot_alpha_diversity <- function() {
     ggplot2::stat_smooth(method='lm') +
     ggplot2::theme(legend.position="none")+
     ggplot2::xlab('Tree species \nrichness') +
-    ggplot2::ylab('Shannon diversity of bacteria, fungi and nematode')
+    ggplot2::ylab('Shannon diversity of bacteria and fungi')
 
 #---- Plot functional diversity ----------------------------------------------------
-  alldf <- data.frame(treefundiv=c(fdis_test_fungrare$fdis,
+  alldf <- data.frame(treefundiv=c(#fdis_test_fungrare$fdis,
                                   fdis_test_fungrare$fdis,
                                   fdis_test_bakorare$fdis),
-                      shannon=c(sample_data(fungorare)$Hnem,
+                      shannon=c(#sample_data(fungorare)$Hnem,
                                 fdis_test_fungrare$shannon_fungrare,
                                 fdis_test_bakorare$shannon_baktrare),
-                      group=c(rep('nematode',nrow(sample_data(fungorare))),
+                      group=c(#rep('nematode',nrow(sample_data(fungorare))),
                               rep('fungi',nrow(sample_data(fungorare))),
                               rep('bacteria',nrow(fdis_test_bakorare))),
-                      Plot = c(rep(sample_data(fungorare)$Plot,2),
+                      Plot = c(sample_data(fungorare)$Plot,
                                sample_data(bakorare)$Plot))
   # change all zeroes for ones.
   alldf <- dplyr::mutate(alldf, treefundiv = replace( treefundiv, treefundiv == 0, 1))
   ptfun <- ggplot2::ggplot(alldf, ggplot2::aes(x=treefundiv, y=exp(shannon), color=group))+
     #ggplot2::geom_jitter(alpha=0.2,width=0.1)+
-    ggplot2::geom_point()+
+    ggplot2::geom_point(alpha=0.6)+
     ggplot2::stat_smooth(method='lm') +
     ggplot2::theme(legend.position="none")+
     ggplot2::xlab('Tree functional \ndiversity') +
-    ggplot2::ylab('Shannon diversity of bacteria, fungi and nematode')
+    ggplot2::ylab('Shannon diversity of bacteria and fungi')
 
-  my_list$summary_lm_fdis1_fr <- summary(nlme::lme(exp(shannon) ~ treefundiv, random = ~1|Plot, alldf[alldf$group == 'fungi',]))
-  my_list$summary_lm_fdis1_br <- summary(nlme::lme(exp(shannon) ~ treefundiv, random = ~1|Plot, alldf[alldf$group == 'bacteria',]))
-  my_list$summary_lm_fdis1_n <- summary(nlme::lme(exp(shannon) ~ treefundiv, random = ~1|Plot, na.omit(alldf[alldf$group == 'nematode',])))
+  #---- Plot phylogenetic diversity ----------------------------------------------------
+  alldf <- data.frame(treepdiv=c(#fdis_test_fungrare$fdis,
+    pd_test_fungrare$PD,
+    pd_test_bakorare$PD),
+    shannon=c(#sample_data(fungorare)$Hnem,
+      pd_test_fungrare$shannon_fungrare,
+      pd_test_bakorare$shannon_baktrare),
+    group=c(#rep('nematode',nrow(sample_data(fungorare))),
+      rep('fungi',nrow(sample_data(fungorare))),
+      rep('bacteria',nrow(sample_data(bakorare)))),
+    Plot = c(sample_data(fungorare)$Plot,
+             sample_data(bakorare)$Plot))
+  # change all zeroes for ones.
+  #alldf <- dplyr::mutate(alldf, treefundiv = replace( treefundiv, treefundiv == 0, 1))
+  ptphy <- ggplot2::ggplot(alldf, ggplot2::aes(x=treepdiv, y=exp(shannon), color=group))+
+    #ggplot2::geom_jitter(alpha=0.2,width=0.1)+
+    ggplot2::geom_point(alpha=0.6)+
+    ggplot2::stat_smooth(method='lm') +
+    ggplot2::theme(legend.position="none")+
+    ggplot2::xlab('Tree phylogenetic \ndiversity') +
+    ggplot2::ylab('Shannon diversity of bacteria and fungi')
+  # my_list$summary_lm_fdis1_fr <- summary(nlme::lme(exp(shannon) ~ treefundiv, random = ~1|Plot, alldf[alldf$group == 'fungi',]))
+  # my_list$summary_lm_fdis1_br <- summary(nlme::lme(exp(shannon) ~ treefundiv, random = ~1|Plot, alldf[alldf$group == 'bacteria',]))
+  # my_list$summary_lm_fdis1_n <- summary(nlme::lme(exp(shannon) ~ treefundiv, random = ~1|Plot, na.omit(alldf[alldf$group == 'nematode',])))
 #----- Plot nematode against bako fung -----------------------------------------
   nfb <- data.frame(nematode=c(sample_data(fungorare)$Hnem,
                                sample_data(bakorare)$Hnem),
@@ -216,7 +241,7 @@ plot_alpha_diversity <- function() {
     ggplot2::stat_smooth(method='lm') +
     ggplot2::xlab('Shannon diversity \nof bacteria') +
     ggplot2::ylab('Shannon diversity of fungi') +
-    ggplot2::annotate('text',x=50,y=1,label=paste('r = ',
+    ggplot2::annotate('text',x=500,y=1,label=paste('r = ',
                                                  round(cortest$estimate,digits=2),
                                                  ' ± ',
                                                  round(cortest$estimate-cortest$conf.int[1],digits=3),
@@ -225,5 +250,5 @@ plot_alpha_diversity <- function() {
     ) +
     ggplot2::scale_colour_discrete(drop=TRUE,
                                    limits = levels(alldf$group))
-  return(c(my_list, list('bfn_fundiv' = ptfun,'bfn_div' = pt,'bf_n' = pn,'b_f' = pbf)))
+  return(c(my_list, list('bfn_phydiv' = ptphy, 'bfn_fundiv' = ptfun,'bfn_div' = pt,'bf_n' = pn,'b_f' = pbf)))
 }
